@@ -1,0 +1,31 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import load_iris
+
+iris = load_iris()
+X = iris.data
+y = iris.target
+
+X = np.array([pd.qcut(x, q=4, labels=False, duplicates='drop') for x in X.T]).T
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+prior_probs = np.bincount(y_train) / len(y_train)
+
+likelihood_probs = {}
+for class_ in np.unique(y_train):
+    likelihood_probs[class_] = [(pd.Series(X_train[y_train==class_, i]).value_counts() / len(X_train[y_train==class_, i])) for i in range(X_train.shape[1])]
+
+def predict(X):
+    posteriors = np.zeros((X.shape[0], len(np.unique(y_train))))
+    for class_ in np.unique(y_train):
+        for i in range(X.shape[1]):
+            posteriors[:, class_] += np.log(likelihood_probs[class_][i].get(X[:, i], 1e-6))
+        posteriors[:, class_] += np.log(prior_probs[class_])
+    return np.argmax(posteriors, axis=1)
+
+y_pred = predict(X_test)
+
+accuracy = np.mean(y_pred == y_test)
+print(f'Accuracy: {accuracy}')
